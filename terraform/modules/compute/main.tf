@@ -90,4 +90,11 @@ resource "google_compute_instance" "comfyui" {
   }
 
   allow_stopping_for_update = true
+
+  # Ignore image family resolving to a newer image version on each plan —
+  # prevents Terraform from destroying and recreating the VM just because
+  # the Deep Learning base image received a patch update.
+  lifecycle {
+    ignore_changes = [boot_disk[0].initialize_params[0].image]
+  }
 }
