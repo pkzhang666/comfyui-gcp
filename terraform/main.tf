@@ -61,6 +61,7 @@ module "compute" {
   subnetwork      = module.networking.subnetwork_self_link
   compute_config  = var.compute_config
   comfyui_config  = var.comfyui_config
+  llm_config      = var.llm_config
   service_account = module.iam.comfyui_service_account_email
   models_bucket   = module.storage.models_bucket_name
   outputs_bucket  = module.storage.outputs_bucket_name

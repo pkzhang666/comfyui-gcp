@@ -1,10 +1,13 @@
 locals {
   startup_script = templatefile("${path.module}/startup-script.sh.tpl", {
-    comfyui_port   = var.comfyui_config.port
-    comfyui_listen = var.comfyui_config.listen_address
-    comfyui_args   = var.comfyui_config.extra_args
-    models_bucket  = var.models_bucket
-    outputs_bucket = var.outputs_bucket
+    comfyui_port     = var.comfyui_config.port
+    comfyui_listen   = var.comfyui_config.listen_address
+    comfyui_args     = var.comfyui_config.extra_args
+    models_bucket    = var.models_bucket
+    outputs_bucket   = var.outputs_bucket
+    llama_port       = var.llm_config.port
+    llm_model_quant  = var.llm_config.model_quant
+    llm_context_size = var.llm_config.context_size
   })
 }
 

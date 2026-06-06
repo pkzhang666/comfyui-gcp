@@ -165,3 +165,17 @@ variable "comfyui_config" {
     extra_args     = ""
   }
 }
+
+variable "llm_config" {
+  description = "llama.cpp server configuration for Qwen3.6-35B-A3B"
+  type = object({
+    port         = number
+    model_quant  = string
+    context_size = number
+  })
+  default = {
+    port         = 8080
+    model_quant  = "Q6_K_P"
+    context_size = 8192
+  }
+}

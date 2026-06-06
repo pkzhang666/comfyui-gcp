@@ -4,12 +4,12 @@ TERRAFORM_DIR := terraform
 -include .env
 export
 
-.PHONY: help check init plan apply destroy start stop ssh tunnel status logs gpu-status clean genconfig
+.PHONY: help check init plan apply destroy start stop ssh tunnel status logs gpu-status clean genconfig llm-tunnel llm-logs llm-status llm-test
 
 help:
 	@echo ""
-	@echo "ComfyUI Workflow — Infrastructure Management"
-	@echo "============================================="
+	@echo "ComfyUI + LLM — Infrastructure Management"
+	@echo "==========================================="
 	@echo ""
 	@echo "  check      Check prerequisites (gcloud, terraform)"
 	@echo "  genconfig  Generate terraform/*.tfvars from .env + templates"
@@ -18,13 +18,18 @@ help:
 	@echo "  apply      Deploy/update infrastructure"
 	@echo "  destroy    Tear down all infrastructure"
 	@echo ""
-	@echo "  start    Start the ComfyUI VM (billing resumes)"
+	@echo "  start    Start the VM (billing resumes)"
 	@echo "  stop     Stop the VM to save costs"
 	@echo "  ssh      Open SSH session via IAP tunnel"
-	@echo "  tunnel   Forward port 8188 → localhost:8188 via IAP"
-	@echo "  status   Show VM state and ComfyUI service status"
+	@echo "  tunnel   Forward ComfyUI port 8188 → localhost:8188"
+	@echo "  status   Show VM state and service status"
 	@echo "  logs     Stream ComfyUI service logs"
 	@echo "  gpu      Show GPU utilization (nvidia-smi)"
+	@echo ""
+	@echo "  llm-tunnel  Forward llama-server port $(LLAMA_PORT) → localhost:$(LLAMA_PORT)"
+	@echo "  llm-logs    Stream llama-server logs"
+	@echo "  llm-status  Show llama-server service status"
+	@echo "  llm-test    Run API test (requires llm-tunnel open in another terminal)"
 	@echo ""
 	@echo "  clean    Remove local .terraform cache"
 	@echo ""
@@ -118,3 +123,33 @@ gpu:
 clean:
 	rm -rf $(TERRAFORM_DIR)/.terraform $(TERRAFORM_DIR)/.terraform.lock.hcl
 	@echo "Local Terraform cache cleared."
+
+# ── LLM targets ──────────────────────────────────────────────────────────────
+LLAMA_PORT ?= 8080
+
+llm-tunnel:
+	@echo "Opening IAP tunnel: localhost:$(LLAMA_PORT) → $(VM_NAME):$(LLAMA_PORT)"
+	@echo "API will be available at http://localhost:$(LLAMA_PORT)/v1 after tunnel connects."
+	gcloud compute start-iap-tunnel $(VM_NAME) $(LLAMA_PORT) \
+		--local-host-port=localhost:$(LLAMA_PORT) \
+		--zone=$(ZONE) \
+		--project=$(PROJECT_ID)
+
+llm-logs:
+	gcloud compute ssh $(VM_NAME) \
+		--zone=$(ZONE) \
+		--project=$(PROJECT_ID) \
+		--tunnel-through-iap \
+		--command="sudo journalctl -u llama-server -f --no-pager"
+
+llm-status:
+	gcloud compute ssh $(VM_NAME) \
+		--zone=$(ZONE) \
+		--project=$(PROJECT_ID) \
+		--tunnel-through-iap \
+		--command="systemctl status llama-server --no-pager -l; echo '---'; ls -lh /mnt/disks/models/llm/ 2>/dev/null || echo 'LLM model dir not found yet'"
+
+llm-test:
+	@echo "Testing llama-server API on localhost:$(LLAMA_PORT)..."
+	@echo "(Assumes 'make llm-tunnel' is running in another terminal)"
+	./llm/api-test.sh $(LLAMA_PORT)

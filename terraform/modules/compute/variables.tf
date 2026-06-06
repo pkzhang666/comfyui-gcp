@@ -66,6 +66,20 @@ variable "outputs_bucket" {
   description = "GCS bucket name for outputs (passed to startup script)"
 }
 
+variable "llm_config" {
+  description = "llama.cpp server configuration"
+  type = object({
+    port         = number
+    model_quant  = string
+    context_size = number
+  })
+  default = {
+    port         = 8080
+    model_quant  = "Q6_K_P"
+    context_size = 8192
+  }
+}
+
 variable "labels" {
   type = map(string)
 }

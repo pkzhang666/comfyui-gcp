@@ -9,16 +9,24 @@ COMFYUI_ARGS="${comfyui_args}"
 DATA_DISK_MOUNT="/mnt/disks/models"
 MODELS_BUCKET="${models_bucket}"
 OUTPUTS_BUCKET="${outputs_bucket}"
+LLAMA_PORT="${llama_port}"
+LLM_MODEL_QUANT="${llm_model_quant}"
+LLM_CONTEXT_SIZE="${llm_context_size}"
 LOG_FILE="/var/log/comfyui-init.log"
 
 exec >> "$LOG_FILE" 2>&1
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Boot startup triggered"
 
-# If already initialized, just ensure the service is running
-if [ -f "/etc/comfyui-initialized" ]; then
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Already initialized — starting service"
+# Quick path for subsequent boots — start all already-configured services and exit
+if [ -f "/etc/comfyui-initialized" ] && [ -f "/etc/llama-initialized" ]; then
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] All services initialized — starting ComfyUI and llama-server"
   systemctl start comfyui || true
+  systemctl start llama-server || true
   exit 0
+elif [ -f "/etc/comfyui-initialized" ] && [ ! -f "/etc/llama-initialized" ]; then
+  # ComfyUI already done; resume llama.cpp setup
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Resuming llama.cpp setup..."
+  systemctl start comfyui || true
 fi
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] First boot — starting full initialization"
@@ -227,4 +235,91 @@ systemctl enable comfyui
 systemctl start comfyui
 
 touch /etc/comfyui-initialized
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Initialization complete — ComfyUI listening on port $COMFYUI_PORT"
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] ComfyUI initialization complete — listening on port $COMFYUI_PORT"
+
+# ── llama.cpp + Qwen3.6-35B setup ────────────────────────────────────────────
+if [ ! -f "/etc/llama-initialized" ]; then
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] === Starting llama.cpp setup ==="
+
+  LLAMA_DIR="/opt/llama.cpp"
+  LLM_MODEL_DIR="$DATA_DISK_MOUNT/llm"
+  MODEL_REPO="HauhauCS/Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive"
+  MODEL_FILE="Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-$LLM_MODEL_QUANT.gguf"
+  MMPROJ_FILE="mmproj-Qwen3.6-35B-A3B-Uncensored-HauhauCS-Aggressive-f16.gguf"
+  HF_BASE="https://huggingface.co/$MODEL_REPO/resolve/main"
+
+  # Extra build dependencies
+  apt-get install -y -q cmake build-essential libcurl4-openssl-dev
+
+  # Clone llama.cpp
+  if [ ! -d "$LLAMA_DIR/.git" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Cloning llama.cpp..."
+    git clone https://github.com/ggml-org/llama.cpp "$LLAMA_DIR"
+  else
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Updating llama.cpp..."
+    git -C "$LLAMA_DIR" pull --ff-only 2>/dev/null || true
+  fi
+
+  # Build with CUDA (A100 = SM 80)
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Building llama.cpp with CUDA SM_80 (A100)..."
+  cmake -B "$LLAMA_DIR/build" "$LLAMA_DIR" \
+    -DGGML_CUDA=ON \
+    -DCMAKE_CUDA_ARCHITECTURES=80 \
+    -DCMAKE_BUILD_TYPE=Release \
+    -DLLAMA_CURL=ON \
+    2>&1 | tee /var/log/llama-cmake.log
+  cmake --build "$LLAMA_DIR/build" --config Release -j$(nproc) \
+    2>&1 | tee /var/log/llama-build.log
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] llama.cpp build complete"
+
+  # Download model (resumable with -c)
+  mkdir -p "$LLM_MODEL_DIR"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Downloading $MODEL_FILE from HuggingFace..."
+  wget -c -q --show-progress \
+    -O "$LLM_MODEL_DIR/$MODEL_FILE" \
+    "$HF_BASE/$MODEL_FILE" \
+    || echo "WARNING: model download may be incomplete"
+
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Downloading vision projector $MMPROJ_FILE..."
+  wget -c -q --show-progress \
+    -O "$LLM_MODEL_DIR/$MMPROJ_FILE" \
+    "$HF_BASE/$MMPROJ_FILE" \
+    || echo "WARNING: mmproj download may be incomplete"
+
+  # systemd service for llama-server
+  cat > /etc/systemd/system/llama-server.service << SERVICE
+[Unit]
+Description=llama.cpp Server — Qwen3.6-35B-A3B ($LLM_MODEL_QUANT)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+ExecStart=$LLAMA_DIR/build/bin/llama-server \
+  --model $LLM_MODEL_DIR/$MODEL_FILE \
+  --mmproj $LLM_MODEL_DIR/$MMPROJ_FILE \
+  --host 0.0.0.0 \
+  --port $LLAMA_PORT \
+  -ngl 99 \
+  --ctx-size $LLM_CONTEXT_SIZE \
+  --flash-attn \
+  --parallel 4
+Restart=on-failure
+RestartSec=15
+StandardOutput=journal
+StandardError=journal
+Environment="HOME=/root"
+Environment="PATH=/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+[Install]
+WantedBy=multi-user.target
+SERVICE
+
+  systemctl daemon-reload
+  systemctl enable llama-server
+  systemctl start llama-server
+  touch /etc/llama-initialized
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] llama-server initialized on port $LLAMA_PORT"
+fi
+
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] All initialization complete"
