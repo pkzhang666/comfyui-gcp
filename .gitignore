@@ -1,0 +1,51 @@
+# ── Terraform sensitive config ────────────────────────────────────────────────
+# These contain real project IDs, bucket names, credentials — never commit
+terraform/terraform.tfvars
+terraform/backend.tfvars
+
+# Terraform state (contains resource details and may include secrets)
+**/*.tfstate
+**/*.tfstate.backup
+**/.terraform/
+**/*.tfplan
+**/.terraform.lock.hcl
+
+# ── Credentials & secrets ─────────────────────────────────────────────────────
+*.json
+!package.json
+!package-lock.json
+# Keep ComfyUI workflow files
+!*.workflow.json
+!video_*.json
+credentials/
+secrets/
+.env
+.env.*
+!.env.example
+
+# GCP service account key files
+*-key.json
+*-credentials.json
+service-account*.json
+gcp-key*.json
+
+# SSH private keys
+*.pem
+*.key
+id_rsa
+id_ed25519
+*.ppk
+
+# ── OS / editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+
+# ── Logs & temp ───────────────────────────────────────────────────────────────
+*.log
+tmp/
+temp/

@@ -1,0 +1,73 @@
+project_id  = "your-gcp-project-id"
+region      = "us-central1"
+zone        = "us-central1-a"
+environment = "dev"
+
+labels = {
+  application = "comfyui-workflow"
+  environment = "dev"
+  managed-by  = "terraform"
+  team        = "your-team"
+}
+
+network_config = {
+  vpc = {
+    name         = "comfyui-vpc"
+    routing_mode = "REGIONAL"
+  }
+  subnet = {
+    cidr                  = "10.1.0.0/24"
+    flow_logs_enabled     = true
+    private_google_access = true
+  }
+  router = {
+    asn = 64515
+  }
+  nat = {
+    ip_allocation = "AUTO_ONLY"
+    log_enabled   = true
+  }
+  firewall = {
+    iap_ranges = ["35.235.240.0/20"]
+  }
+}
+
+compute_config = {
+  name         = "comfyui-vm"
+  machine_type = "n1-standard-8"
+  gpu = {
+    # Options: nvidia-tesla-t4 (16GB), nvidia-l4 (24GB), nvidia-tesla-a100 (40GB)
+    type  = "nvidia-tesla-t4"
+    count = 1
+  }
+  boot_disk = {
+    image_family  = "pytorch-latest-gpu-debian-11-py310"
+    image_project = "deeplearning-platform-release"
+    size_gb       = 100
+    type          = "pd-ssd"
+  }
+  data_disk = {
+    size_gb = 500
+    type    = "pd-ssd"
+  }
+  enable_deletion_protection = false
+}
+
+storage_config = {
+  models_bucket = {
+    name          = "your-project-id-comfyui-models"
+    location      = "US"
+    storage_class = "STANDARD"
+  }
+  outputs_bucket = {
+    name          = "your-project-id-comfyui-outputs"
+    location      = "US"
+    storage_class = "STANDARD"
+  }
+}
+
+comfyui_config = {
+  port           = 8188
+  listen_address = "0.0.0.0"
+  extra_args     = ""
+}
