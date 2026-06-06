@@ -81,5 +81,5 @@ llm_config = {
   #   Q4_K_M = 21.2 GB  (faster, more KV cache headroom)
   model_quant  = "Q6_K_P"
   # Context window in tokens (8192 default; 16384 if you need longer)
-  context_size = 8192
+  context_size = 32768
 }

@@ -176,6 +176,6 @@ variable "llm_config" {
   default = {
     port         = 8080
     model_quant  = "Q6_K_P"
-    context_size = 8192
+    context_size = 32768
   }
 }

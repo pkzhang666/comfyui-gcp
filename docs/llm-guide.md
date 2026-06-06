@@ -142,7 +142,7 @@ make gpu
 llm_config = {
   port         = 8080        # llama-server listen port
   model_quant  = "Q6_K_P"   # GGUF quantisation (see table above)
-  context_size = 8192        # Context window in tokens
+  context_size = 32768       # Context window in tokens (total across all --parallel slots)
 }
 ```
 

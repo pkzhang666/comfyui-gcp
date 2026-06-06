@@ -79,5 +79,5 @@ llm_config = {
   #   Q6_K_P = 30.6 GB  (best quality, recommended)
   #   Q4_K_M = 21.2 GB  (faster, more KV cache headroom)
   model_quant  = "Q6_K_P"
-  context_size = 8192
+  context_size = 32768
 }
