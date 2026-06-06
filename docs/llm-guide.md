@@ -32,12 +32,17 @@ To change the quant, edit `llm_config.model_quant` in `terraform/terraform.tfvar
 
 ## First-time Setup
 
-The LLM service is deployed automatically alongside ComfyUI via the same Terraform apply.
+The LLM service is deployed automatically alongside ComfyUI via the same Terraform apply when `ENABLE_LLAMA=true`.
 
 ```bash
 # 1. Fill in your .env (copy from example if you haven't yet)
 cp .env.example .env
 # edit .env → set PROJECT_ID, STATE_BUCKET, etc.
+
+# Optional service toggles
+# ENABLE_COMFYUI=true
+# ENABLE_LLAMA=true
+# ENABLE_OPEN_WEBUI=true
 
 # 2. Deploy (or re-deploy if already running)
 make apply
@@ -59,6 +64,8 @@ On first boot the startup script will:
 ## Connecting to the API
 
 The VM has no public IP. Access is via IAP tunnel only.
+
+If you also enable `ENABLE_OPEN_WEBUI=true`, the browser chat UI is exposed separately on port `3000` and uses the llama.cpp API on `8080`.
 
 **Step 1 — Open the tunnel** (keep this terminal open):
 ```bash
@@ -145,6 +152,8 @@ llm_config = {
   context_size = 32768       # Context window in tokens (total across all --parallel slots)
 }
 ```
+
+Service enablement is controlled separately in `.env` through `ENABLE_LLAMA` and `ENABLE_OPEN_WEBUI`.
 
 After changing any value, run `make apply` to regenerate the startup script and trigger re-init on the next VM restart.
 

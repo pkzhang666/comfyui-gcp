@@ -4,7 +4,7 @@ zone        = "${ZONE}"
 environment = "dev"
 
 labels = {
-  application = "comfyui-workflow"
+  application = "gcp-ai-studio"
   environment = "dev"
   managed-by  = "terraform"
   team        = "cloudwerx"
@@ -74,9 +74,9 @@ comfyui_config = {
 }
 
 service_toggles = {
-  comfyui    = true
-  llama      = true
-  open_webui = true
+  comfyui    = ${ENABLE_COMFYUI}
+  llama      = ${ENABLE_LLAMA}
+  open_webui = ${ENABLE_OPEN_WEBUI}
 }
 
 llm_config = {

@@ -29,7 +29,7 @@ variable "labels" {
   description = "Common resource labels applied to all resources"
   type        = map(string)
   default = {
-    application = "comfyui-workflow"
+    application = "gcp-ai-studio"
     managed-by  = "terraform"
   }
 }

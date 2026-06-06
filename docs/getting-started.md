@@ -15,12 +15,15 @@ This makes it extremely flexible — you can build complex multi-step pipelines,
 ## Step 1 — Deploy and Start the VM
 
 ```bash
-# From ~/comfyui-workflow/
+# From ~/gcp-ai-studio/
+cp .env.example .env
+# edit .env if needed
+
 make init
 make apply
 ```
 
-First boot takes **8–12 minutes** while ComfyUI and dependencies install. You can watch progress:
+First boot takes time while the enabled services install. You can watch progress:
 
 ```bash
 make ssh
@@ -28,7 +31,19 @@ make ssh
 sudo tail -f /var/log/comfyui-init.log
 ```
 
-When you see `Initialization complete — ComfyUI listening on port 8188`, it's ready.
+When you see the relevant initialization messages in `/var/log/comfyui-init.log`, the selected services are ready.
+
+## Service Toggles
+
+All services are enabled by default in `.env`:
+
+```env
+ENABLE_COMFYUI=true
+ENABLE_LLAMA=true
+ENABLE_OPEN_WEBUI=true
+```
+
+If you only want the ComfyUI UI, you can disable the others before `make apply`.
 
 ---
 
@@ -48,6 +63,15 @@ Listening on port [8188]...
 ```
 
 Now open **http://localhost:8188** in your browser. Keep the terminal open — closing it closes the tunnel.
+
+If `ENABLE_LLAMA=true` and `ENABLE_OPEN_WEBUI=true`, you can also use:
+
+```bash
+make llm-tunnel
+make webui-tunnel
+```
+
+Open WebUI will be available at **http://localhost:3000**.
 
 ---
 
@@ -128,7 +152,7 @@ Your image appears in the **Save Image** node and is saved to `/mnt/disks/models
 
 ## Step 5 — Stop When Done
 
-The T4 GPU costs ~$0.73/hr while running. Always stop it when you're done:
+The current default setup uses an A100 VM, so idle cost is materially higher than older T4/L4 examples. Stop it when you're done:
 
 ```bash
 make stop

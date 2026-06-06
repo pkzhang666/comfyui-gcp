@@ -1,18 +1,29 @@
-# ComfyUI Workflow — Image to Video
+# gcp-ai-studio
 
-A self-hosted ComfyUI environment on GCP with GPU, designed for image-to-video AI generation workflows. Built on top of [ComfyUI](https://github.com/comfyanonymous/ComfyUI) and deployed via Terraform on the `$PROJECT_ID` project.
+A self-hosted GCP stack for ComfyUI, llama.cpp, and Open WebUI on a single GPU VM. Built on top of [ComfyUI](https://github.com/comfyanonymous/ComfyUI), [llama.cpp](https://github.com/ggml-org/llama.cpp), and Terraform.
 
 ## What is this?
 
 ComfyUI is a **node-based GUI** for running AI image and video generation models locally. Think of it as a visual programming tool where you connect blocks (nodes) to build generation pipelines — no coding required.
 
-This project provisions a dedicated GCP VM with an NVIDIA T4 GPU, isolated VPC, and persistent storage, then auto-installs ComfyUI on first boot.
+This project provisions a dedicated GCP VM with an NVIDIA A100 GPU, isolated VPC, and persistent storage, then installs the enabled services on first boot.
 
 **Supports:**
 - Text-to-image (Stable Diffusion 1.5, SDXL, Flux, SD3)
 - Image-to-image (img2img, style transfer)
 - **Image-to-video** (Wan2.1, SVD, AnimateDiff, CogVideoX)
 - Upscaling, inpainting, ControlNet, LoRA
+- Local LLM inference via llama.cpp
+- Browser chat UI with Open WebUI
+
+---
+
+## What Changed
+
+- The repository name is now `gcp-ai-studio`.
+- The current default deployment targets an A100 VM and includes optional `ComfyUI`, `llama.cpp`, and `Open WebUI` services.
+- The repo layout is intentionally unchanged. The current structure is already small and clear, while changing Terraform paths or backend layout would create unnecessary state-migration risk.
+- The existing Terraform backend prefix can stay as-is for continuity, even though the repository name changed.
 
 ---
 
@@ -20,13 +31,14 @@ This project provisions a dedicated GCP VM with an NVIDIA T4 GPU, isolated VPC, 
 
 | Resource | Details |
 |----------|---------|
-| VM | `g2-standard-8` (8 vCPU, 32 GB RAM) |
-| GPU | NVIDIA L4 — 24 GB VRAM |
-| Boot disk | 100 GB SSD — Deep Learning VM (CUDA pre-installed) |
-| Data disk | 500 GB SSD — models, outputs, inputs |
+| VM | `a2-highgpu-1g` |
+| GPU | NVIDIA A100 — 40 GB VRAM |
+| Boot disk | 100 GB `pd-balanced` — Deep Learning VM (CUDA pre-installed) |
+| Data disk | 200 GB `pd-balanced` — models, outputs, inputs |
 | Network | Isolated VPC `comfyui-vpc` (10.1.0.0/24) |
 | Access | IAP TCP tunnel — no public IP |
 | Buckets | `*-comfyui-models` / `*-comfyui-outputs` |
+| Services | ComfyUI `8188`, llama.cpp `8080`, Open WebUI `3000` |
 
 ---
 
@@ -34,21 +46,43 @@ This project provisions a dedicated GCP VM with an NVIDIA T4 GPU, isolated VPC, 
 
 ### 1. Deploy infrastructure
 ```bash
+cp .env.example .env
+# edit .env
+
 make init
 make apply
-# First boot takes ~10 minutes to install ComfyUI
+# First boot takes time to install enabled services and download models
 ```
 
-### 2. Access ComfyUI
+### 2. Access services
 ```bash
-# Terminal 1 — open IAP tunnel
+# ComfyUI
 make tunnel
 
-# Then open in browser:
+# llama.cpp OpenAI-compatible API
+make llm-tunnel
+
+# Open WebUI
+make webui-tunnel
+
+# Then open:
 # http://localhost:8188
+# http://localhost:3000
 ```
 
-### 3. Add models (image-to-video)
+### 3. Choose which services are enabled
+
+The default is to enable all three services. You can override them in `.env`:
+
+```env
+ENABLE_COMFYUI=true
+ENABLE_LLAMA=true
+ENABLE_OPEN_WEBUI=true
+```
+
+`ENABLE_OPEN_WEBUI=true` requires `ENABLE_LLAMA=true`.
+
+### 4. Add models (image-to-video)
 ```bash
 # SSH into VM
 make ssh
@@ -62,7 +96,7 @@ gsutil -m cp gs://$MODELS_BUCKET/checkpoints/your-model.safetensors \
   /mnt/disks/models/models/checkpoints/
 ```
 
-### 4. Stop VM when done (save costs)
+### 5. Stop VM when done (save costs)
 ```bash
 make stop
 # Restart anytime with: make start
@@ -75,6 +109,7 @@ make stop
 | Guide | Description |
 |-------|-------------|
 | [Getting Started](docs/getting-started.md) | First-time setup, UI walkthrough, first generation |
+| [LLM Guide](docs/llm-guide.md) | llama.cpp, Qwen3.6-35B-A3B, Open WebUI access |
 | [Stable Diffusion Guide](docs/stable-diffusion.md) | What SD is, versions, which to use |
 | [Models Guide](docs/models-guide.md) | How to download, install, and manage models |
 | [Image-to-Video Workflow](docs/image-to-video.md) | Step-by-step Wan2.1 / SVD workflows |
@@ -95,6 +130,8 @@ make start     Start the VM
 make stop      Stop the VM (save costs ~$0.75/hr with T4)
 make ssh       SSH into VM via IAP
 make tunnel    Forward localhost:8188 to ComfyUI via IAP
+make llm-tunnel Forward localhost:8080 to llama.cpp via IAP
+make webui-tunnel Forward localhost:3000 to Open WebUI via IAP
 make status    VM state + ComfyUI service health
 make logs      Stream ComfyUI logs
 make gpu       Show GPU utilization (nvidia-smi)
@@ -102,16 +139,36 @@ make gpu       Show GPU utilization (nvidia-smi)
 
 ---
 
-## Cost Estimate (us-central1, as of 2025)
+## Repo Layout
+
+```text
+.
+├── .env.example
+├── Makefile
+├── README.md
+├── docs/
+├── llm/
+└── terraform/
+```
+
+- `docs/` holds operator-facing guides.
+- `terraform/` owns infrastructure, startup automation, and service toggles.
+- `llm/` contains local smoke tests for the llama.cpp API.
+
+No structural change is needed right now. The main problem was naming and documentation drift, not package layout.
+
+---
+
+## Cost Estimate
 
 ### VM Cost (only when running)
 
 | Component | Price |
 |-----------|-------|
-| g2-standard-8 (8 vCPU, 32 GB RAM + L4 GPU) | ~$1.20 / hr |
-| **VM total (running)** | **~$1.20 / hr** |
+| a2-highgpu-1g (A100 40 GB) | Higher than L4/T4 configurations |
+| **VM total (running)** | Check current GCP pricing for your region |
 
-> L4 GPU pricing is bundled into the g2 machine type — no separate GPU charge.
+Use `make stop` aggressively when not working. The A100 profile is optimized for larger image-to-video and LLM workloads, not lowest cost.
 
 ### Storage Cost (always-on, even when VM is stopped)
 
@@ -153,7 +210,7 @@ make start
 | GPU | VRAM | VM + GPU / hr | Best For |
 |-----|------|---------------|---------|
 | T4 (n1-standard-8) | 16 GB | ~$0.73/hr | Budget testing, 480P |
-| **L4 (g2-standard-8) ← current** | **24 GB** | **~$1.20/hr** | **Wan2.1 720P, recommended** |
-| A100 (a2-highgpu-1g) | 40 GB | ~$3.67/hr | Fastest, largest models |
+| L4 (g2-standard-8) | 24 GB | ~$1.20/hr | Lower-cost ComfyUI-only setups |
+| **A100 (a2-highgpu-1g) ← current** | **40 GB** | Check current pricing | **ComfyUI + llama.cpp + Open WebUI on one VM** |
 
 Change GPU in [terraform.tfvars](terraform/terraform.tfvars) → `compute_config.machine_type` + `compute_config.gpu.type`

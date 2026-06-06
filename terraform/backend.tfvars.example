@@ -1,2 +1,2 @@
 bucket = "your-project-id-tf-state"
-prefix = "comfyui-workflow/state"
+prefix = "gcp-ai-studio/state"

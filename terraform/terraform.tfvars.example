@@ -4,7 +4,7 @@ zone        = "us-central1-a"
 environment = "dev"
 
 labels = {
-  application = "comfyui-workflow"
+  application = "gcp-ai-studio"
   environment = "dev"
   managed-by  = "terraform"
   team        = "your-team"
