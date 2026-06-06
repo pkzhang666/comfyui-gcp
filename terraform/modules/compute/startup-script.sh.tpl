@@ -340,6 +340,7 @@ if ! docker inspect open-webui &>/dev/null; then
     --name open-webui \
     --restart always \
     -v open-webui:/app/backend/data \
+    -e ENABLE_OLLAMA_API=false \
     -e OPENAI_API_BASE_URL=http://localhost:$LLAMA_PORT/v1 \
     -e OPENAI_API_KEY=none \
     -e WEBUI_AUTH=false \
