@@ -251,6 +251,10 @@ if [ ! -f "/etc/llama-initialized" ]; then
   # Extra build dependencies
   apt-get install -y -q cmake build-essential libcurl4-openssl-dev
 
+  # Ensure nvcc is on PATH (Deep Learning VMs install CUDA to /usr/local/cuda)
+  export PATH=/usr/local/cuda/bin:$PATH
+  export CUDA_HOME=/usr/local/cuda
+
   # Clone llama.cpp
   if [ ! -d "$LLAMA_DIR/.git" ]; then
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Cloning llama.cpp..."
@@ -260,13 +264,14 @@ if [ ! -f "/etc/llama-initialized" ]; then
     git -C "$LLAMA_DIR" pull --ff-only 2>/dev/null || true
   fi
 
-  # Build with CUDA (A100 = SM 80)
+  # Build with CUDA (A100 = SM 80) — explicitly set nvcc path
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] Building llama.cpp with CUDA SM_80 (A100)..."
   cmake -B "$LLAMA_DIR/build" "$LLAMA_DIR" \
     -DGGML_CUDA=ON \
     -DCMAKE_CUDA_ARCHITECTURES=80 \
     -DCMAKE_BUILD_TYPE=Release \
     -DLLAMA_CURL=ON \
+    -DCMAKE_CUDA_COMPILER=/usr/local/cuda/bin/nvcc \
     2>&1 | tee /var/log/llama-cmake.log
   cmake --build "$LLAMA_DIR/build" --config Release -j$(nproc) \
     2>&1 | tee /var/log/llama-build.log
@@ -310,6 +315,7 @@ StandardOutput=journal
 StandardError=journal
 Environment="HOME=/root"
 Environment="PATH=/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+Environment="CUDA_HOME=/usr/local/cuda"
 
 [Install]
 WantedBy=multi-user.target
