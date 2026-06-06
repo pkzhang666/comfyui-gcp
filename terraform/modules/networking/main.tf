@@ -68,7 +68,7 @@ resource "google_compute_firewall" "allow_iap_ssh" {
   }
 }
 
-# Allow ComfyUI (8188) and llama-server (8080) ports via IAP TCP tunnel
+# Allow ComfyUI (8188), llama-server (8080) and Open WebUI (3000) via IAP TCP tunnel
 resource "google_compute_firewall" "allow_iap_comfyui" {
   project  = var.project_id
   name     = "${var.network_config.vpc.name}-allow-iap-comfyui"
@@ -77,7 +77,7 @@ resource "google_compute_firewall" "allow_iap_comfyui" {
 
   allow {
     protocol = "tcp"
-    ports    = ["8080", "8188"]
+    ports    = ["3000", "8080", "8188"]
   }
 
   source_ranges = var.network_config.firewall.iap_ranges

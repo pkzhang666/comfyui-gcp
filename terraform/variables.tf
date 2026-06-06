@@ -172,10 +172,12 @@ variable "llm_config" {
     port         = number
     model_quant  = string
     context_size = number
+    webui_port   = number
   })
   default = {
     port         = 8080
     model_quant  = "Q6_K_P"
     context_size = 32768
+    webui_port   = 3000
   }
 }

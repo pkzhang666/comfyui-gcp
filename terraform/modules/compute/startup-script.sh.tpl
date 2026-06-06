@@ -12,6 +12,7 @@ OUTPUTS_BUCKET="${outputs_bucket}"
 LLAMA_PORT="${llama_port}"
 LLM_MODEL_QUANT="${llm_model_quant}"
 LLM_CONTEXT_SIZE="${llm_context_size}"
+WEBUI_PORT="${webui_port}"
 LOG_FILE="/var/log/comfyui-init.log"
 
 exec >> "$LOG_FILE" 2>&1
@@ -19,9 +20,10 @@ echo "[$(date '+%Y-%m-%d %H:%M:%S')] Boot startup triggered"
 
 # Quick path for subsequent boots — start all already-configured services and exit
 if [ -f "/etc/comfyui-initialized" ] && [ -f "/etc/llama-initialized" ]; then
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] All services initialized — starting ComfyUI and llama-server"
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] All services initialized — starting ComfyUI, llama-server and open-webui"
   systemctl start comfyui || true
   systemctl start llama-server || true
+  docker start open-webui 2>/dev/null || true
   exit 0
 elif [ -f "/etc/comfyui-initialized" ] && [ ! -f "/etc/llama-initialized" ]; then
   # ComfyUI already done; resume llama.cpp setup
@@ -320,6 +322,34 @@ SERVICE
   systemctl start llama-server
   touch /etc/llama-initialized
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] llama-server initialized on port $LLAMA_PORT"
+fi
+
+# ── Open WebUI ────────────────────────────────────────────────────────────────
+echo "[$(date '+%Y-%m-%d %H:%M:%S')] Setting up Open WebUI..."
+
+# Install Docker if not present
+if ! command -v docker &>/dev/null; then
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing Docker..."
+  curl -fsSL https://get.docker.com | sh
+fi
+
+# Pull image once, then start container (idempotent)
+if ! docker inspect open-webui &>/dev/null; then
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting Open WebUI container..."
+  docker run -d \
+    --name open-webui \
+    --restart always \
+    -v open-webui:/app/backend/data \
+    -e OPENAI_API_BASE_URL=http://localhost:$LLAMA_PORT/v1 \
+    -e OPENAI_API_KEY=none \
+    -e WEBUI_AUTH=false \
+    -e PORT=$WEBUI_PORT \
+    --network host \
+    ghcr.io/open-webui/open-webui:main
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Open WebUI started on port $WEBUI_PORT"
+else
+  docker start open-webui 2>/dev/null || true
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Open WebUI already exists, started"
 fi
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] All initialization complete"

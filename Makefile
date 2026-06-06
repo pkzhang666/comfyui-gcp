@@ -4,7 +4,7 @@ TERRAFORM_DIR := terraform
 -include .env
 export
 
-.PHONY: help check init plan apply destroy start stop ssh tunnel status logs gpu-status clean genconfig llm-tunnel llm-logs llm-status llm-test
+.PHONY: help check init plan apply destroy start stop ssh tunnel status logs gpu-status clean genconfig llm-tunnel llm-logs llm-status llm-test webui-tunnel webui-logs
 
 help:
 	@echo ""
@@ -30,6 +30,9 @@ help:
 	@echo "  llm-logs    Stream llama-server logs"
 	@echo "  llm-status  Show llama-server service status"
 	@echo "  llm-test    Run API test (requires llm-tunnel open in another terminal)"
+	@echo ""
+	@echo "  webui-tunnel  Forward Open WebUI port $(WEBUI_PORT) → localhost:$(WEBUI_PORT)"
+	@echo "  webui-logs    Stream Open WebUI container logs"
 	@echo ""
 	@echo "  clean    Remove local .terraform cache"
 	@echo ""
@@ -153,3 +156,21 @@ llm-test:
 	@echo "Testing llama-server API on localhost:$(LLAMA_PORT)..."
 	@echo "(Assumes 'make llm-tunnel' is running in another terminal)"
 	./llm/api-test.sh $(LLAMA_PORT)
+
+# ── Open WebUI targets ────────────────────────────────────────────────────────
+WEBUI_PORT ?= 3000
+
+webui-tunnel:
+	@echo "Opening IAP tunnel: localhost:$(WEBUI_PORT) → $(VM_NAME):$(WEBUI_PORT)"
+	@echo "Open WebUI will be available at http://localhost:$(WEBUI_PORT) after tunnel connects."
+	gcloud compute start-iap-tunnel $(VM_NAME) $(WEBUI_PORT) \
+		--local-host-port=localhost:$(WEBUI_PORT) \
+		--zone=$(ZONE) \
+		--project=$(PROJECT_ID)
+
+webui-logs:
+	gcloud compute ssh $(VM_NAME) \
+		--zone=$(ZONE) \
+		--project=$(PROJECT_ID) \
+		--tunnel-through-iap \
+		--command="sudo docker logs open-webui -f --tail 50"

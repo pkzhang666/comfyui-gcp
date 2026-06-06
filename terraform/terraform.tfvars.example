@@ -73,11 +73,8 @@ comfyui_config = {
 }
 
 llm_config = {
-  # Port for llama-server (OpenAI-compatible API)
-  port = 8080
-  # GGUF quantisation to download — for A100 40GB:
-  #   Q6_K_P = 30.6 GB  (best quality, recommended)
-  #   Q4_K_M = 21.2 GB  (faster, more KV cache headroom)
+  port         = 8080
   model_quant  = "Q6_K_P"
   context_size = 32768
+  webui_port   = 3000
 }
