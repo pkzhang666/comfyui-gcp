@@ -73,6 +73,12 @@ comfyui_config = {
   extra_args     = ""
 }
 
+service_toggles = {
+  comfyui    = true
+  llama      = true
+  open_webui = true
+}
+
 llm_config = {
   # Port for llama-server (OpenAI-compatible API)
   port = 8080

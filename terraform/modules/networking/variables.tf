@@ -30,6 +30,15 @@ variable "network_config" {
   })
 }
 
+variable "service_toggles" {
+  description = "Enable or disable firewall access for VM services"
+  type = object({
+    comfyui    = bool
+    llama      = bool
+    open_webui = bool
+  })
+}
+
 variable "labels" {
   type = map(string)
 }

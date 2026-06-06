@@ -1,3 +1,12 @@
+# Service ports exposed through IAP only when enabled.
+locals {
+  service_ports = compact([
+    var.service_toggles.open_webui ? "3000" : null,
+    var.service_toggles.llama ? "8080" : null,
+    var.service_toggles.comfyui ? "8188" : null,
+  ])
+}
+
 resource "google_compute_network" "vpc" {
   project                 = var.project_id
   name                    = var.network_config.vpc.name
@@ -68,8 +77,9 @@ resource "google_compute_firewall" "allow_iap_ssh" {
   }
 }
 
-# Allow ComfyUI (8188), llama-server (8080) and Open WebUI (3000) via IAP TCP tunnel
+# Allow enabled service ports via IAP TCP tunnel
 resource "google_compute_firewall" "allow_iap_comfyui" {
+  count    = length(local.service_ports) > 0 ? 1 : 0
   project  = var.project_id
   name     = "${var.network_config.vpc.name}-allow-iap-comfyui"
   network  = google_compute_network.vpc.name
@@ -77,7 +87,7 @@ resource "google_compute_firewall" "allow_iap_comfyui" {
 
   allow {
     protocol = "tcp"
-    ports    = ["3000", "8080", "8188"]
+    ports    = local.service_ports
   }
 
   source_ranges = var.network_config.firewall.iap_ranges

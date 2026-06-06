@@ -13,22 +13,41 @@ LLAMA_PORT="${llama_port}"
 LLM_MODEL_QUANT="${llm_model_quant}"
 LLM_CONTEXT_SIZE="${llm_context_size}"
 WEBUI_PORT="${webui_port}"
+ENABLE_COMFYUI="${enable_comfyui}"
+ENABLE_LLAMA="${enable_llama}"
+ENABLE_OPEN_WEBUI="${enable_open_webui}"
 LOG_FILE="/var/log/comfyui-init.log"
 
 exec >> "$LOG_FILE" 2>&1
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Boot startup triggered"
 
-# Quick path for subsequent boots — start all already-configured services and exit
-if [ -f "/etc/comfyui-initialized" ] && [ -f "/etc/llama-initialized" ]; then
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] All services initialized — starting ComfyUI, llama-server and open-webui"
-  systemctl start comfyui || true
-  systemctl start llama-server || true
-  docker start open-webui 2>/dev/null || true
+all_enabled_services_ready=true
+
+if [ "$ENABLE_COMFYUI" = "true" ] && [ ! -f "/etc/comfyui-initialized" ]; then
+  all_enabled_services_ready=false
+fi
+
+if [ "$ENABLE_LLAMA" = "true" ] && [ ! -f "/etc/llama-initialized" ]; then
+  all_enabled_services_ready=false
+fi
+
+if [ "$ENABLE_OPEN_WEBUI" = "true" ] && ! docker inspect open-webui &>/dev/null; then
+  all_enabled_services_ready=false
+fi
+
+# Quick path for subsequent boots — start all enabled services and exit
+if [ "$all_enabled_services_ready" = "true" ]; then
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Enabled services already initialized — starting selected services"
+  if [ "$ENABLE_COMFYUI" = "true" ]; then
+    systemctl start comfyui || true
+  fi
+  if [ "$ENABLE_LLAMA" = "true" ]; then
+    systemctl start llama-server || true
+  fi
+  if [ "$ENABLE_OPEN_WEBUI" = "true" ]; then
+    docker start open-webui 2>/dev/null || true
+  fi
   exit 0
-elif [ -f "/etc/comfyui-initialized" ] && [ ! -f "/etc/llama-initialized" ]; then
-  # ComfyUI already done; resume llama.cpp setup
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Resuming llama.cpp setup..."
-  systemctl start comfyui || true
 fi
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] First boot — starting full initialization"
@@ -72,42 +91,6 @@ else
   DATA_DISK_MOUNT="$COMFYUI_DIR"
 fi
 
-# ── 4. Clone ComfyUI ─────────────────────────────────────────────────────────
-if [ ! -d "$COMFYUI_DIR/.git" ]; then
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Cloning ComfyUI..."
-  git clone https://github.com/comfyanonymous/ComfyUI "$COMFYUI_DIR"
-else
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] ComfyUI already cloned"
-fi
-
-cd "$COMFYUI_DIR"
-
-# ── 5. Python virtual environment ───────────────────────────────────────────
-if [ ! -d "$COMFYUI_DIR/venv" ]; then
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Creating virtual environment..."
-  python3 -m venv "$COMFYUI_DIR/venv"
-fi
-
-source "$COMFYUI_DIR/venv/bin/activate"
-
-# ── 6. PyTorch with CUDA 12.1 ───────────────────────────────────────────────
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing/verifying PyTorch CUDA..."
-pip install --quiet --upgrade torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
-python3 -c "import torch; print('[torch] CUDA available:', torch.cuda.is_available(), '| Device:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'N/A')"
-
-# ── 7. ComfyUI requirements ──────────────────────────────────────────────────
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing ComfyUI requirements..."
-pip install --quiet -r requirements.txt
-
-# ── 8. ComfyUI Manager (node manager plugin) ─────────────────────────────────
-MANAGER_DIR="$COMFYUI_DIR/custom_nodes/ComfyUI-Manager"
-if [ ! -d "$MANAGER_DIR" ]; then
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing ComfyUI-Manager..."
-  git clone https://github.com/ltdrdata/ComfyUI-Manager.git "$MANAGER_DIR"
-  pip install --quiet -r "$MANAGER_DIR/requirements.txt"
-fi
-
-# ── 9. Custom nodes ───────────────────────────────────────────────────────────
 install_node() {
   local name="$1"
   local url="$2"
@@ -124,48 +107,6 @@ install_node() {
     fi
   fi
 }
-
-install_node "ComfyUI-VideoHelperSuite"         "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git"
-install_node "ComfyUI-AnimateDiff-Evolved"      "https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved"
-install_node "ComfyUI-Custom-Scripts"           "https://github.com/pythongosssss/ComfyUI-Custom-Scripts"
-install_node "ComfyUI-Easy-Use"                 "https://github.com/yolain/ComfyUI-Easy-Use"
-install_node "ComfyUI-Frame-Interpolation"      "https://github.com/Fannovel16/ComfyUI-Frame-Interpolation"
-install_node "ComfyUI-GGUF"                     "https://github.com/city96/ComfyUI-GGUF"
-install_node "ComfyUI-Impact-Pack"              "https://github.com/ltdrdata/ComfyUI-Impact-Pack"
-install_node "ComfyUI-Impact-Subpack"           "https://github.com/ltdrdata/ComfyUI-Impact-Subpack"
-install_node "ComfyUI-InstantX-IPAdapter-SD3"   "https://github.com/Slickytail/ComfyUI-InstantX-IPAdapter-SD3"
-install_node "ComfyUI-KJNodes"                  "https://github.com/kijai/ComfyUI-KJNodes"
-install_node "ComfyUI-LoRA-stacker"             "https://github.com/zwaigani/ComfyUI-LoRA-stacker"
-install_node "ComfyUI-Lora-Manager"             "https://github.com/willmiao/ComfyUI-Lora-Manager.git"
-install_node "ComfyUI-ReActor"                  "https://github.com/Gourieff/ComfyUI-ReActor"
-install_node "ComfyUI-WanVideoWrapper"          "https://github.com/kijai/ComfyUI-WanVideoWrapper"
-install_node "ComfyUI-quadMoons-nodes"          "https://github.com/traugdor/ComfyUI-quadMoons-nodes"
-install_node "ComfyUI_IPAdapter_plus"           "https://github.com/cubiq/ComfyUI_IPAdapter_plus" "93d973a"
-install_node "ComfyUI_essentials"               "https://github.com/cubiq/ComfyUI_essentials"
-install_node "SeargeSDXL"                       "https://github.com/SeargeDP/SeargeSDXL"
-install_node "cg-use-everywhere"                "https://github.com/chrisgoringe/cg-use-everywhere"
-install_node "comfyui-animatediff"              "https://github.com/SipherAGI/comfyui-animatediff"
-install_node "comfyui-tooling-nodes"            "https://github.com/Acly/comfyui-tooling-nodes.git"
-install_node "efficiency-nodes-comfyui"         "https://github.com/jags111/efficiency-nodes-comfyui"
-install_node "rgthree-comfy"                    "https://github.com/rgthree/rgthree-comfy"
-
-# ── 10. Set up model directories on data disk ─────────────────────────────────
-if mountpoint -q "$DATA_DISK_MOUNT" 2>/dev/null || [ "$DATA_DISK_MOUNT" != "$COMFYUI_DIR" ]; then
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Setting up model directories..."
-  for subdir in checkpoints vae loras controlnet upscale_models clip unet diffusion_models text_encoders clip_vision animatediff_models video_formats latent_upscale_models GGUF sams ipadapter embeddings; do
-    mkdir -p "$DATA_DISK_MOUNT/models/$subdir"
-  done
-  mkdir -p "$DATA_DISK_MOUNT/output"
-  mkdir -p "$DATA_DISK_MOUNT/input"
-
-  # Replace ComfyUI's default dirs with symlinks to the data disk
-  for dir in models output input; do
-    rm -rf "$COMFYUI_DIR/$dir"
-    ln -sfn "$DATA_DISK_MOUNT/$dir" "$COMFYUI_DIR/$dir"
-  done
-fi
-
-# ── 11. Download models ──────────────────────────────────────────────────────
 download_model() {
   local subdir="$1"
   local url="$2"
@@ -180,16 +121,92 @@ download_model() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] Done: $filename"
   fi
 }
+if [ "$ENABLE_COMFYUI" = "true" ] && [ ! -f "/etc/comfyui-initialized" ]; then
+  # ── 4. Clone ComfyUI ───────────────────────────────────────────────────────
+  if [ ! -d "$COMFYUI_DIR/.git" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Cloning ComfyUI..."
+    git clone https://github.com/comfyanonymous/ComfyUI "$COMFYUI_DIR"
+  else
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ComfyUI already cloned"
+  fi
 
-download_model "checkpoints"           "https://huggingface.co/Lightricks/LTX-2.3-fp8/resolve/main/ltx-2.3-22b-dev-fp8.safetensors"
-download_model "latent_upscale_models" "https://huggingface.co/Lightricks/LTX-2.3/resolve/main/ltx-2.3-spatial-upscaler-x2-1.1.safetensors"
-download_model "loras"                 "https://huggingface.co/Comfy-Org/ltx-2.3/resolve/main/split_files/loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors"
-download_model "loras"                 "https://huggingface.co/Comfy-Org/ltx-2/resolve/main/split_files/loras/gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors"
-download_model "text_encoders"         "https://huggingface.co/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors"
-download_model "checkpoints"           "https://huggingface.co/SulphurAI/Sulphur-2-base/resolve/main/sulphur_dev_bf16.safetensors?download=true"
+  cd "$COMFYUI_DIR"
 
-# ── 12. extra_model_paths.yaml ────────────────────────────────────────────────
-cat > "$COMFYUI_DIR/extra_model_paths.yaml" << YAML
+  # ── 5. Python virtual environment ─────────────────────────────────────────
+  if [ ! -d "$COMFYUI_DIR/venv" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Creating virtual environment..."
+    python3 -m venv "$COMFYUI_DIR/venv"
+  fi
+
+  source "$COMFYUI_DIR/venv/bin/activate"
+
+  # ── 6. PyTorch with CUDA 12.1 ─────────────────────────────────────────────
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing/verifying PyTorch CUDA..."
+  pip install --quiet --upgrade torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
+  python3 -c "import torch; print('[torch] CUDA available:', torch.cuda.is_available(), '| Device:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'N/A')"
+
+  # ── 7. ComfyUI requirements ────────────────────────────────────────────────
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing ComfyUI requirements..."
+  pip install --quiet -r requirements.txt
+
+  # ── 8. ComfyUI Manager (node manager plugin) ──────────────────────────────
+  MANAGER_DIR="$COMFYUI_DIR/custom_nodes/ComfyUI-Manager"
+  if [ ! -d "$MANAGER_DIR" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing ComfyUI-Manager..."
+    git clone https://github.com/ltdrdata/ComfyUI-Manager.git "$MANAGER_DIR"
+    pip install --quiet -r "$MANAGER_DIR/requirements.txt"
+  fi
+
+  # ── 9. Custom nodes ────────────────────────────────────────────────────────
+  install_node "ComfyUI-VideoHelperSuite"         "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git"
+  install_node "ComfyUI-AnimateDiff-Evolved"      "https://github.com/Kosinkadink/ComfyUI-AnimateDiff-Evolved"
+  install_node "ComfyUI-Custom-Scripts"           "https://github.com/pythongosssss/ComfyUI-Custom-Scripts"
+  install_node "ComfyUI-Easy-Use"                 "https://github.com/yolain/ComfyUI-Easy-Use"
+  install_node "ComfyUI-Frame-Interpolation"      "https://github.com/Fannovel16/ComfyUI-Frame-Interpolation"
+  install_node "ComfyUI-GGUF"                     "https://github.com/city96/ComfyUI-GGUF"
+  install_node "ComfyUI-Impact-Pack"              "https://github.com/ltdrdata/ComfyUI-Impact-Pack"
+  install_node "ComfyUI-Impact-Subpack"           "https://github.com/ltdrdata/ComfyUI-Impact-Subpack"
+  install_node "ComfyUI-InstantX-IPAdapter-SD3"   "https://github.com/Slickytail/ComfyUI-InstantX-IPAdapter-SD3"
+  install_node "ComfyUI-KJNodes"                  "https://github.com/kijai/ComfyUI-KJNodes"
+  install_node "ComfyUI-LoRA-stacker"             "https://github.com/zwaigani/ComfyUI-LoRA-stacker"
+  install_node "ComfyUI-Lora-Manager"             "https://github.com/willmiao/ComfyUI-Lora-Manager.git"
+  install_node "ComfyUI-ReActor"                  "https://github.com/Gourieff/ComfyUI-ReActor"
+  install_node "ComfyUI-WanVideoWrapper"          "https://github.com/kijai/ComfyUI-WanVideoWrapper"
+  install_node "ComfyUI-quadMoons-nodes"          "https://github.com/traugdor/ComfyUI-quadMoons-nodes"
+  install_node "ComfyUI_IPAdapter_plus"           "https://github.com/cubiq/ComfyUI_IPAdapter_plus" "93d973a"
+  install_node "ComfyUI_essentials"               "https://github.com/cubiq/ComfyUI_essentials"
+  install_node "SeargeSDXL"                       "https://github.com/SeargeDP/SeargeSDXL"
+  install_node "cg-use-everywhere"                "https://github.com/chrisgoringe/cg-use-everywhere"
+  install_node "comfyui-animatediff"              "https://github.com/SipherAGI/comfyui-animatediff"
+  install_node "comfyui-tooling-nodes"            "https://github.com/Acly/comfyui-tooling-nodes.git"
+  install_node "efficiency-nodes-comfyui"         "https://github.com/jags111/efficiency-nodes-comfyui"
+  install_node "rgthree-comfy"                    "https://github.com/rgthree/rgthree-comfy"
+
+  # ── 10. Set up model directories on data disk ─────────────────────────────
+  if mountpoint -q "$DATA_DISK_MOUNT" 2>/dev/null || [ "$DATA_DISK_MOUNT" != "$COMFYUI_DIR" ]; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Setting up model directories..."
+    for subdir in checkpoints vae loras controlnet upscale_models clip unet diffusion_models text_encoders clip_vision animatediff_models video_formats latent_upscale_models GGUF sams ipadapter embeddings; do
+      mkdir -p "$DATA_DISK_MOUNT/models/$subdir"
+    done
+    mkdir -p "$DATA_DISK_MOUNT/output"
+    mkdir -p "$DATA_DISK_MOUNT/input"
+
+    for dir in models output input; do
+      rm -rf "$COMFYUI_DIR/$dir"
+      ln -sfn "$DATA_DISK_MOUNT/$dir" "$COMFYUI_DIR/$dir"
+    done
+  fi
+
+  # ── 11. Download models ───────────────────────────────────────────────────
+  download_model "checkpoints"           "https://huggingface.co/Lightricks/LTX-2.3-fp8/resolve/main/ltx-2.3-22b-dev-fp8.safetensors"
+  download_model "latent_upscale_models" "https://huggingface.co/Lightricks/LTX-2.3/resolve/main/ltx-2.3-spatial-upscaler-x2-1.1.safetensors"
+  download_model "loras"                 "https://huggingface.co/Comfy-Org/ltx-2.3/resolve/main/split_files/loras/ltx_2.3_22b_distilled_1.1_lora_dynamic_fro09_avg_rank_111_bf16.safetensors"
+  download_model "loras"                 "https://huggingface.co/Comfy-Org/ltx-2/resolve/main/split_files/loras/gemma-3-12b-it-abliterated_lora_rank64_bf16.safetensors"
+  download_model "text_encoders"         "https://huggingface.co/Comfy-Org/ltx-2/resolve/main/split_files/text_encoders/gemma_3_12B_it_fp4_mixed.safetensors"
+  download_model "checkpoints"           "https://huggingface.co/SulphurAI/Sulphur-2-base/resolve/main/sulphur_dev_bf16.safetensors?download=true"
+
+  # ── 12. extra_model_paths.yaml ────────────────────────────────────────────
+  cat > "$COMFYUI_DIR/extra_model_paths.yaml" << YAML
 comfyui:
     base_path: $DATA_DISK_MOUNT/
     checkpoints: models/checkpoints/
@@ -210,8 +227,8 @@ comfyui:
     ipadapter: models/ipadapter/
 YAML
 
-# ── 13. systemd service ───────────────────────────────────────────────────────
-cat > /etc/systemd/system/comfyui.service << SERVICE
+  # ── 13. systemd service ───────────────────────────────────────────────────
+  cat > /etc/systemd/system/comfyui.service << SERVICE
 [Unit]
 Description=ComfyUI Image-to-Video Workflow
 After=network.target
@@ -232,15 +249,16 @@ Environment="PATH=$COMFYUI_DIR/venv/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin
 WantedBy=multi-user.target
 SERVICE
 
-systemctl daemon-reload
-systemctl enable comfyui
-systemctl start comfyui
+  systemctl daemon-reload
+  systemctl enable comfyui
+  systemctl start comfyui
 
-touch /etc/comfyui-initialized
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] ComfyUI initialization complete — listening on port $COMFYUI_PORT"
+  touch /etc/comfyui-initialized
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] ComfyUI initialization complete — listening on port $COMFYUI_PORT"
+fi
 
 # ── llama.cpp + Qwen3.6-35B setup ────────────────────────────────────────────
-if [ ! -f "/etc/llama-initialized" ]; then
+if [ "$ENABLE_LLAMA" = "true" ] && [ ! -f "/etc/llama-initialized" ]; then
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] === Starting llama.cpp setup ==="
 
   LLAMA_DIR="/opt/llama.cpp"
@@ -325,39 +343,39 @@ SERVICE
 fi
 
 # ── Open WebUI ────────────────────────────────────────────────────────────────
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] Setting up Open WebUI..."
+if [ "$ENABLE_OPEN_WEBUI" = "true" ]; then
+  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Setting up Open WebUI..."
 
-# Install Docker if not present
-if ! command -v docker &>/dev/null; then
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing Docker..."
-  curl -fsSL https://get.docker.com | sh
-fi
+  if ! command -v docker &>/dev/null; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Installing Docker..."
+    curl -fsSL https://get.docker.com | sh
+  fi
 
-# Pull image once, then start container (idempotent)
-if ! docker inspect open-webui &>/dev/null; then
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting Open WebUI container..."
-  docker run -d \
-    --name open-webui \
-    --restart always \
-    -v open-webui:/app/backend/data \
-    -e ENABLE_OLLAMA_API=false \
-    -e OPENAI_API_BASE_URL=http://localhost:$LLAMA_PORT/v1 \
-    -e OPENAI_API_KEY=none \
-    -e WEBUI_AUTH=false \
-    -e PORT=$WEBUI_PORT \
-    -e ENABLE_WEB_SEARCH=true \
-    -e WEB_SEARCH_ENGINE=duckduckgo \
-    -e WEB_SEARCH_RESULT_COUNT=5 \
-    -e WEB_SEARCH_CONCURRENT_REQUESTS=10 \
-    -e USER_PERMISSIONS_FEATURES_WEB_SEARCH=true \
-    -e BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL=true \
-    -e BYPASS_WEB_SEARCH_WEB_LOADER=true \
-    --network host \
-    ghcr.io/open-webui/open-webui:main
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Open WebUI started on port $WEBUI_PORT"
-else
-  docker start open-webui 2>/dev/null || true
-  echo "[$(date '+%Y-%m-%d %H:%M:%S')] Open WebUI already exists, started"
+  if ! docker inspect open-webui &>/dev/null; then
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Starting Open WebUI container..."
+    docker run -d \
+      --name open-webui \
+      --restart always \
+      -v open-webui:/app/backend/data \
+      -e ENABLE_OLLAMA_API=false \
+      -e OPENAI_API_BASE_URL=http://localhost:$LLAMA_PORT/v1 \
+      -e OPENAI_API_KEY=none \
+      -e WEBUI_AUTH=false \
+      -e PORT=$WEBUI_PORT \
+      -e ENABLE_WEB_SEARCH=true \
+      -e WEB_SEARCH_ENGINE=duckduckgo \
+      -e WEB_SEARCH_RESULT_COUNT=5 \
+      -e WEB_SEARCH_CONCURRENT_REQUESTS=10 \
+      -e USER_PERMISSIONS_FEATURES_WEB_SEARCH=true \
+      -e BYPASS_WEB_SEARCH_EMBEDDING_AND_RETRIEVAL=true \
+      -e BYPASS_WEB_SEARCH_WEB_LOADER=true \
+      --network host \
+      ghcr.io/open-webui/open-webui:main
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Open WebUI started on port $WEBUI_PORT"
+  else
+    docker start open-webui 2>/dev/null || true
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Open WebUI already exists, started"
+  fi
 fi
 
 echo "[$(date '+%Y-%m-%d %H:%M:%S')] All initialization complete"

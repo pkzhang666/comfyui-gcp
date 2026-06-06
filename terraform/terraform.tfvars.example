@@ -72,6 +72,12 @@ comfyui_config = {
   extra_args     = ""
 }
 
+service_toggles = {
+  comfyui    = true
+  llama      = true
+  open_webui = true
+}
+
 llm_config = {
   port         = 8080
   model_quant  = "Q6_K_P"

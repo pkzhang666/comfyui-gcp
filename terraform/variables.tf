@@ -166,6 +166,24 @@ variable "comfyui_config" {
   }
 }
 
+variable "service_toggles" {
+  description = "Enable or disable ComfyUI, llama.cpp, and Open WebUI services"
+  type = object({
+    comfyui    = bool
+    llama      = bool
+    open_webui = bool
+  })
+  default = {
+    comfyui    = true
+    llama      = true
+    open_webui = true
+  }
+  validation {
+    condition     = var.service_toggles.open_webui ? var.service_toggles.llama : true
+    error_message = "service_toggles.open_webui requires service_toggles.llama to be true."
+  }
+}
+
 variable "llm_config" {
   description = "llama.cpp server configuration for Qwen3.6-35B-A3B"
   type = object({

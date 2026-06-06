@@ -9,6 +9,9 @@ locals {
     llm_model_quant  = var.llm_config.model_quant
     llm_context_size = var.llm_config.context_size
     webui_port       = var.llm_config.webui_port
+    enable_comfyui   = var.service_toggles.comfyui
+    enable_llama     = var.service_toggles.llama
+    enable_open_webui = var.service_toggles.open_webui
   })
 }
 

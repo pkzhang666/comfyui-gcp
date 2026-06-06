@@ -51,6 +51,15 @@ variable "comfyui_config" {
   })
 }
 
+variable "service_toggles" {
+  description = "Enable or disable VM services"
+  type = object({
+    comfyui    = bool
+    llama      = bool
+    open_webui = bool
+  })
+}
+
 variable "service_account" {
   type        = string
   description = "Service account email to attach to the VM"
