@@ -292,6 +292,8 @@ if [ ! -f "/etc/llama-initialized" ]; then
     || echo "WARNING: mmproj download may be incomplete"
 
   # systemd service for llama-server
+  # Note: ExecStart must be a single line — multi-line with backslash continuation
+  # causes systemd to mis-parse arguments (e.g. --flash-attn sees next flag as its value)
   cat > /etc/systemd/system/llama-server.service << SERVICE
 [Unit]
 Description=llama.cpp Server — Qwen3.6-35B-A3B ($LLM_MODEL_QUANT)
@@ -300,22 +302,14 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStart=$LLAMA_DIR/build/bin/llama-server \
-  --model $LLM_MODEL_DIR/$MODEL_FILE \
-  --mmproj $LLM_MODEL_DIR/$MMPROJ_FILE \
-  --host 0.0.0.0 \
-  --port $LLAMA_PORT \
-  -ngl 99 \
-  --ctx-size $LLM_CONTEXT_SIZE \
-  --flash-attn \
-  --parallel 4
+ExecStart=$LLAMA_DIR/build/bin/llama-server --model $LLM_MODEL_DIR/$MODEL_FILE --mmproj $LLM_MODEL_DIR/$MMPROJ_FILE --host 0.0.0.0 --port $LLAMA_PORT -ngl 99 --ctx-size $LLM_CONTEXT_SIZE --flash-attn on --parallel 4
 Restart=on-failure
 RestartSec=15
 StandardOutput=journal
 StandardError=journal
-Environment="HOME=/root"
-Environment="PATH=/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
-Environment="CUDA_HOME=/usr/local/cuda"
+Environment=HOME=/root
+Environment=PATH=/usr/local/cuda/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=CUDA_HOME=/usr/local/cuda
 
 [Install]
 WantedBy=multi-user.target
