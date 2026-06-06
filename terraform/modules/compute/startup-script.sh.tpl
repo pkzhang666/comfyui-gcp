@@ -344,6 +344,10 @@ if ! docker inspect open-webui &>/dev/null; then
     -e OPENAI_API_KEY=none \
     -e WEBUI_AUTH=false \
     -e PORT=$WEBUI_PORT \
+    -e ENABLE_RAG_WEB_SEARCH=true \
+    -e RAG_WEB_SEARCH_ENGINE=duckduckgo \
+    -e RAG_WEB_SEARCH_RESULT_COUNT=5 \
+    -e RAG_WEB_SEARCH_CONCURRENT_REQUESTS=10 \
     --network host \
     ghcr.io/open-webui/open-webui:main
   echo "[$(date '+%Y-%m-%d %H:%M:%S')] Open WebUI started on port $WEBUI_PORT"
