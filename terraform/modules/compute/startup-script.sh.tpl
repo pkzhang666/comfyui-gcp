@@ -12,6 +12,7 @@ OUTPUTS_BUCKET="${outputs_bucket}"
 LLAMA_PORT="${llama_port}"
 LLM_MODEL_QUANT="${llm_model_quant}"
 LLM_CONTEXT_SIZE="${llm_context_size}"
+LLM_PARALLEL="${llm_parallel}"
 WEBUI_PORT="${webui_port}"
 ENABLE_COMFYUI="${enable_comfyui}"
 ENABLE_LLAMA="${enable_llama}"
@@ -322,7 +323,7 @@ After=network.target
 [Service]
 Type=simple
 User=root
-ExecStart=$LLAMA_DIR/build/bin/llama-server --model $LLM_MODEL_DIR/$MODEL_FILE --mmproj $LLM_MODEL_DIR/$MMPROJ_FILE --host 0.0.0.0 --port $LLAMA_PORT -ngl 99 --ctx-size $LLM_CONTEXT_SIZE --flash-attn on --parallel 4
+ExecStart=$LLAMA_DIR/build/bin/llama-server --model $LLM_MODEL_DIR/$MODEL_FILE --mmproj $LLM_MODEL_DIR/$MMPROJ_FILE --host 0.0.0.0 --port $LLAMA_PORT -ngl 99 --ctx-size $LLM_CONTEXT_SIZE --flash-attn on --parallel $LLM_PARALLEL
 Restart=on-failure
 RestartSec=15
 StandardOutput=journal

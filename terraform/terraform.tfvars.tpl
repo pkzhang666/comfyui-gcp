@@ -86,8 +86,10 @@ llm_config = {
   #   Q6_K_P = 30.6 GB  (best quality, recommended)
   #   Q4_K_M = 21.2 GB  (faster, more KV cache headroom)
   model_quant  = "Q6_K_P"
-  # Total context window (divided across --parallel 4 slots)
-  context_size = 32768
+  # Total context window (divided across --parallel slots)
+  context_size = 65536
+  # Concurrent decode slots. Lower value = more tokens per conversation.
+  parallel     = 2
   # Open WebUI port
   webui_port   = 3000
 }

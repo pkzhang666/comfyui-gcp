@@ -8,6 +8,7 @@ locals {
     llama_port       = var.llm_config.port
     llm_model_quant  = var.llm_config.model_quant
     llm_context_size = var.llm_config.context_size
+    llm_parallel     = var.llm_config.parallel
     webui_port       = var.llm_config.webui_port
     enable_comfyui   = var.service_toggles.comfyui
     enable_llama     = var.service_toggles.llama

@@ -87,6 +87,18 @@ ssh:
 		--tunnel-through-iap
 
 tunnel:
+	@echo "Ensuring local port 8188 is free..."
+	@pids="$$(lsof -ti tcp:8188 2>/dev/null || true)"; \
+	if [ -n "$$pids" ]; then \
+		echo "Killing process(es) on 8188: $$pids"; \
+		kill $$pids 2>/dev/null || true; \
+		sleep 1; \
+		pids2="$$(lsof -ti tcp:8188 2>/dev/null || true)"; \
+		if [ -n "$$pids2" ]; then \
+			echo "Force killing remaining process(es): $$pids2"; \
+			kill -9 $$pids2 2>/dev/null || true; \
+		fi; \
+	fi
 	@echo "Opening IAP tunnel: localhost:8188 → $(VM_NAME):8188"
 	@echo "Open http://localhost:8188 in your browser after the tunnel connects."
 	gcloud compute start-iap-tunnel $(VM_NAME) 8188 \
@@ -131,6 +143,18 @@ clean:
 LLAMA_PORT ?= 8080
 
 llm-tunnel:
+	@echo "Ensuring local port $(LLAMA_PORT) is free..."
+	@pids="$$(lsof -ti tcp:$(LLAMA_PORT) 2>/dev/null || true)"; \
+	if [ -n "$$pids" ]; then \
+		echo "Killing process(es) on $(LLAMA_PORT): $$pids"; \
+		kill $$pids 2>/dev/null || true; \
+		sleep 1; \
+		pids2="$$(lsof -ti tcp:$(LLAMA_PORT) 2>/dev/null || true)"; \
+		if [ -n "$$pids2" ]; then \
+			echo "Force killing remaining process(es): $$pids2"; \
+			kill -9 $$pids2 2>/dev/null || true; \
+		fi; \
+	fi
 	@echo "Opening IAP tunnel: localhost:$(LLAMA_PORT) → $(VM_NAME):$(LLAMA_PORT)"
 	@echo "API will be available at http://localhost:$(LLAMA_PORT)/v1 after tunnel connects."
 	gcloud compute start-iap-tunnel $(VM_NAME) $(LLAMA_PORT) \
@@ -161,6 +185,18 @@ llm-test:
 WEBUI_PORT ?= 3000
 
 webui-tunnel:
+	@echo "Ensuring local port $(WEBUI_PORT) is free..."
+	@pids="$$(lsof -ti tcp:$(WEBUI_PORT) 2>/dev/null || true)"; \
+	if [ -n "$$pids" ]; then \
+		echo "Killing process(es) on $(WEBUI_PORT): $$pids"; \
+		kill $$pids 2>/dev/null || true; \
+		sleep 1; \
+		pids2="$$(lsof -ti tcp:$(WEBUI_PORT) 2>/dev/null || true)"; \
+		if [ -n "$$pids2" ]; then \
+			echo "Force killing remaining process(es): $$pids2"; \
+			kill -9 $$pids2 2>/dev/null || true; \
+		fi; \
+	fi
 	@echo "Opening IAP tunnel: localhost:$(WEBUI_PORT) → $(VM_NAME):$(WEBUI_PORT)"
 	@echo "Open WebUI will be available at http://localhost:$(WEBUI_PORT) after tunnel connects."
 	gcloud compute start-iap-tunnel $(VM_NAME) $(WEBUI_PORT) \
